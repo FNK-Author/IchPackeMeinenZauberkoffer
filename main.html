@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ich packe meinen Zauberkoffer... by FNK</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: url('https://i.imgur.com/MRPbkF1.jpg') center / cover no-repeat;
+      font-family: sans-serif;
+      color: #fff;
+      text-align: center;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: start;
+      align-items: center;
+    }
+    .container {
+      width: 90%;
+      max-width: 400px;
+      margin-top: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    h1 span { color: #FCDC2B; }
+    h1 .fnk {
+      color: #00AAFF;
+      text-decoration: none;
+    }
+    button {
+      font-size: 1rem;
+      padding: .5em 1em;
+      border: none;
+      border-radius: .5em;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    #stats {
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    textarea, input {
+      width: 100%;
+      background: transparent;
+      border: 1px solid #000;
+      border-radius: .5em;
+      padding: .5em;
+      font-size: 1rem;
+      color: #fff;
+      outline: none;
+    }
+    #hermine {
+      height: 4em;
+      resize: none;
+      margin-bottom: 10px;
+      pointer-events: none;
+    }
+    #player {
+      margin-bottom: 5px;
+    }
+    #submit {
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    #submit:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+    #overlay {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.9);
+      padding: 20px;
+      border-radius: 10px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      z-index: 10;
+    }
+    #overlay button {
+      margin-top: 1em;
+    }
+    #progressBarContainer {
+      width: 100%;
+      height: 5px;
+      background-color: rgba(255,255,255,0.2);
+      margin-bottom: 5px;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    #progressBar {
+      height: 100%;
+      width: 0;
+      background-color: #FCDC2B;
+      transition: width 0s;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1><span>Ich packe meinen Zauberkoffer... by </span><a href="https://linktr.ee/fnk_fanfics" class="fnk">FNK</a></h1>
+    <button id="start">Spiel starten</button>
+    <div id="stats">
+      <div>Highscore: <span id="score">0</span></div>
+      <div>Anzahl der Leben: <span id="lives">3</span></div>
+    </div>
+    <div id="progressBarContainer"><div id="progressBar"></div></div>
+    <textarea id="hermine" readonly></textarea>
+    <input type="text" id="player" disabled placeholder="Packe deinen Koffer und bestätige mit der Enter Taste." />
+    <button id="submit" disabled>Absenden</button>
+  </div>
+
+  <div id="overlay">
+    <div id="gameover-text"></div>
+    <button id="restart">Neustarten</button>
+  </div>
+
+  <audio id="bg" src="https://files.catbox.moe/gupyh7.mp3" loop></audio>
+
+  <script>
+    const kofferitems = ['Zauberstab','Goldener Schnatz'];
+    let used = [], sequence = [], score = 0, lives = 3, audioStarted = false;
+    const hermine = document.getElementById('hermine');
+    const player = document.getElementById('player');
+    const submit = document.getElementById('submit');
+    const startBtn = document.getElementById('start');
+    const scoreEl = document.getElementById('score');
+    const livesEl = document.getElementById('lives');
+    const overlay = document.getElementById('overlay');
+    const gameoverText = document.getElementById('gameover-text');
+    const restartBtn = document.getElementById('restart');
+    const audio = document.getElementById('bg');
+    const progressBar = document.getElementById('progressBar');
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    async function hermineSpeak(txt, sec) {
+      hermine.value = txt;
+      progressBar.style.transition = `none`;
+      progressBar.style.width = `0%`;
+      await sleep(50);
+      progressBar.style.transition = `width ${sec}s linear`;
+      progressBar.style.width = `100%`;
+      await sleep(sec * 1000);
+      progressBar.style.transition = `none`;
+      progressBar.style.width = `0%`;
+    }
+
+    async function playRound() {
+      if (used.length === kofferitems.length) {
+        overlay.style.display = 'flex';
+        gameoverText.textContent = `Ohje, mir fällt nichts mehr ein. Du gewinnst! Highscore: ${score}`;
+        return;
+      }
+      player.disabled = true;
+      submit.disabled = true;
+
+      await hermineSpeak('Ich packe meinen Koffer und nehme mit...', 3);
+
+      let choices = kofferitems.filter(i => !used.includes(i));
+      const next = choices[Math.floor(Math.random() * choices.length)];
+      used.push(next);
+      sequence.push(next);
+
+      for (let item of sequence) {
+        await hermineSpeak(item, 3);
+      }
+
+      await hermineSpeak('Du bist dran!', 0.001);
+      player.disabled = false;
+      player.value = '';
+      player.focus();
+      submit.disabled = true;
+      await playerTurn();
+    }
+
+    async function playerTurn() {
+      player.addEventListener('input', () => {
+        const len = player.value.trim().length;
+        submit.disabled = (len < 1 || len > 40);
+      });
+
+      for (let i = 0; i < sequence.length; i++) {
+        const input = await new Promise(res => {
+          const clickHandler = () => {
+            submit.removeEventListener('click', clickHandler);
+            res(player.value.trim());
+          };
+          submit.addEventListener('click', clickHandler);
+          player.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !submit.disabled) {
+              e.preventDefault();
+              submit.click();
+            }
+          });
+        });
+
+        if (input.toLowerCase() === sequence[i].toLowerCase()) {
+          await hermineSpeak(`${input} war richtig!`, 2);
+          player.value = '';
+          score++;
+          scoreEl.textContent = score;
+        } else {
+          await hermineSpeak(`${input} war leider falsch! Du verlierst ein Leben... probiere es nochmal!`, 2);
+          lives--;
+          livesEl.textContent = lives;
+          if (lives <= 0) return gameOver();
+          i = -1;
+        }
+      }
+
+      await hermineSpeak('Geschafft! Jetzt darfst du dir einen Gegenstand überlegen...', 0.001);
+      player.disabled = false;
+      player.value = '';
+      player.placeholder = 'Neues Item...';
+      submit.disabled = true;
+
+      const neu = await new Promise(res => {
+        const clickHandler = () => {
+          submit.removeEventListener('click', clickHandler);
+          res(player.value.trim());
+        };
+        submit.addEventListener('click', clickHandler);
+        player.addEventListener('keydown', e => {
+          if (e.key === 'Enter' && !submit.disabled) {
+            e.preventDefault();
+            submit.click();
+          }
+        });
+      });
+
+      kofferitems.push(neu);
+      used.push(neu);
+      sequence.push(neu);
+      await hermineSpeak(`Okay, ${neu} ist jetzt im Zauberkoffer.`, 2);
+      player.placeholder = 'Packe deinen Koffer und bestätige mit der Enter Taste.';
+      playRound();
+    }
+
+    function gameOver() {
+      overlay.style.display = 'flex';
+      gameoverText.innerHTML = `Game Over<br>Highscore: ${score}<br>Im Koffer waren: ${sequence.join(', ')}`;
+    }
+
+    function reset() {
+      used = []; sequence = []; score = 0; lives = 3;
+      scoreEl.textContent = score;
+      livesEl.textContent = lives;
+      overlay.style.display = 'none';
+      player.placeholder = 'Packe deinen Koffer und bestätige mit der Enter Taste.';
+      hermine.value = '';
+      progressBar.style.width = '0%';
+    }
+
+    startBtn.addEventListener('click', () => {
+      reset();
+      if (!audioStarted) {
+        audio.play();
+        audioStarted = true;
+      }
+      playRound();
+    });
+
+    restartBtn.addEventListener('click', () => {
+      reset();
+      playRound();
+    });
+
+    // Schließen des Popups per Klick auf den Hintergrund
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) {
+        overlay.style.display = 'none';
+        reset();
+      }
+    });
+  </script>
+</body>
+</html>
